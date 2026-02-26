@@ -48,23 +48,38 @@ export default function App() {
   const fetchAnnouncements = async () => {
     try {
       const res = await fetch('/api/announcements');
+      if (!res.ok) throw new Error('API not available');
       const data = await res.json();
       setAnnouncements(data);
-      
-      // Check for popups
-      const popups = data.filter((a: Announcement) => a.is_popup === 1);
-      if (popups.length > 0) {
-        // Show the latest popup that hasn't been dismissed in this session
-        const dismissed = sessionStorage.getItem('dismissed-popups');
-        const dismissedIds = dismissed ? JSON.parse(dismissed) : [];
-        const nextPopup = popups.find((p: Announcement) => !dismissedIds.includes(p.id));
-        if (nextPopup) setActivePopup(nextPopup);
-      }
+      saveToLocal(data);
+      handlePopups(data);
     } catch (err) {
-      console.error('Failed to fetch announcements', err);
+      console.warn('API fetch failed, falling back to localStorage', err);
+      const localData = getFromLocal();
+      setAnnouncements(localData);
+      handlePopups(localData);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePopups = (data: Announcement[]) => {
+    const popups = data.filter((a: Announcement) => a.is_popup === 1);
+    if (popups.length > 0) {
+      const dismissed = sessionStorage.getItem('dismissed-popups');
+      const dismissedIds = dismissed ? JSON.parse(dismissed) : [];
+      const nextPopup = popups.find((p: Announcement) => !dismissedIds.includes(p.id));
+      if (nextPopup) setActivePopup(nextPopup);
+    }
+  };
+
+  const saveToLocal = (data: Announcement[]) => {
+    localStorage.setItem('announcements-backup', JSON.stringify(data));
+  };
+
+  const getFromLocal = (): Announcement[] => {
+    const saved = localStorage.getItem('announcements-backup');
+    return saved ? JSON.parse(saved) : [];
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -75,17 +90,32 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password })
       });
-      const data = await res.json();
-      if (data.success) {
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setIsAdmin(true);
+          setShowLogin(false);
+          localStorage.setItem('admin-token', data.token);
+          setPassword('');
+          return;
+        } else {
+          alert(data.message);
+          return;
+        }
+      }
+      throw new Error('API Login failed');
+    } catch (err) {
+      console.warn('API login failed, checking locally (Netlify fallback)', err);
+      // Netlify/Static fallback: Hardcoded password check for demo
+      if (password === "0070") {
         setIsAdmin(true);
         setShowLogin(false);
-        localStorage.setItem('admin-token', data.token);
+        localStorage.setItem('admin-token', 'admin-token-0070');
         setPassword('');
       } else {
-        alert(data.message);
+        alert('비밀번호가 틀렸습니다.');
       }
-    } catch (err) {
-      alert('로그인 중 오류가 발생했습니다.');
     }
   };
 
@@ -110,9 +140,30 @@ export default function App() {
         setEditingItem(null);
         setFormData({ title: '', content: '', is_popup: false });
         fetchAnnouncements();
+        return;
       }
+      throw new Error('API save failed');
     } catch (err) {
-      alert('저장 중 오류가 발생했습니다.');
+      console.warn('API save failed, saving to localStorage (Netlify fallback)', err);
+      // Local fallback
+      const current = getFromLocal();
+      let updated;
+      if (editingItem) {
+        updated = current.map(a => a.id === editingItem.id ? { ...a, ...formData } : a);
+      } else {
+        const newItem = {
+          id: Date.now(),
+          ...formData,
+          is_popup: formData.is_popup ? 1 : 0,
+          created_at: new Date().toISOString()
+        };
+        updated = [newItem, ...current];
+      }
+      saveToLocal(updated);
+      setAnnouncements(updated);
+      setShowForm(false);
+      setEditingItem(null);
+      setFormData({ title: '', content: '', is_popup: false });
     }
   };
 
@@ -137,17 +188,24 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' }
       });
       
-      const data = await res.json();
-
-      if (data.success) {
-        setAlertModal({ show: true, message: "성공적으로 삭제되었습니다.", type: 'success' });
-        await fetchAnnouncements();
-        setSelectedAnnouncement(null);
-      } else {
-        setAlertModal({ show: true, message: "삭제 실패: " + (data.message || "알 수 없는 이유"), type: 'error' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setAlertModal({ show: true, message: "성공적으로 삭제되었습니다.", type: 'success' });
+          await fetchAnnouncements();
+          setSelectedAnnouncement(null);
+          return;
+        }
       }
+      throw new Error('API delete failed');
     } catch (err: any) {
-      setAlertModal({ show: true, message: "삭제 중 에러가 발생했습니다: " + err.message, type: 'error' });
+      console.warn('API delete failed, deleting from localStorage (Netlify fallback)', err);
+      const current = getFromLocal();
+      const updated = current.filter(a => a.id !== id);
+      saveToLocal(updated);
+      setAnnouncements(updated);
+      setSelectedAnnouncement(null);
+      setAlertModal({ show: true, message: "성공적으로 삭제되었습니다. (로컬)", type: 'success' });
     }
   };
 
