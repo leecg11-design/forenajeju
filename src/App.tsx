@@ -358,7 +358,7 @@ export default function App() {
           </div>
           <div className="text-xs text-center md:text-right">
             <p>© 2024 Forena Jeju Jungmun. All rights reserved.</p>
-            <p className="mt-1">관리사무소: 064-XXX-XXXX</p>
+            <p className="mt-1">관리사무소: 064-900-0690</p>
           </div>
         </div>
       </footer>
