@@ -1,0 +1,23 @@
+{
+  "name": "포레나 제주중문 공지사항",
+  "short_name": "포레나공지",
+  "description": "포레나 제주중문 입주민을 위한 공지사항 애플리케이션",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#002855",
+  "icons": [
+    {
+      "src": "https://picsum.photos/seed/forena/192/192",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://picsum.photos/seed/forena/512/512",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
